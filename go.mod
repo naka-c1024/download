@@ -1,4 +1,4 @@
-module download
+module github.com/naka-c1024/download
 
 go 1.19
 

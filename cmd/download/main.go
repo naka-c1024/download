@@ -1,9 +1,10 @@
 package main
 
 import (
-	"download"
 	"fmt"
 	"os"
+
+	"github.com/naka-c1024/download"
 )
 
 func main() {
