@@ -13,6 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// downloadInGoroutineは指定されたURLからデータを並行処理でダウンロードします。
+// ダウンロードしたデータは最終的にまとめられ、文字列として返されます。
 func downloadInGoroutine(url string, arrRange []string, divNum int) (string, error) {
 	var splitData []string = make([]string, divNum)
 	eg, ctx := errgroup.WithContext(context.Background())
@@ -54,6 +56,7 @@ func downloadInGoroutine(url string, arrRange []string, divNum int) (string, err
 	return allData, nil
 }
 
+// hasAcceptRangesBytesは指定されたURLがバイト範囲リクエストを受け入れるかどうかを判定します。
 func hasAcceptRangesBytes(url string) (bool, error) {
 	res, err := http.Head(url)
 	if err != nil {
@@ -67,6 +70,7 @@ func hasAcceptRangesBytes(url string) (bool, error) {
 	}
 }
 
+// getContentLengthは指定されたURLのコンテンツの長さを取得します。
 func getContentLength(url string) (int, error) {
 	res, err := http.Head(url)
 	if err != nil {
@@ -80,6 +84,8 @@ func getContentLength(url string) (int, error) {
 	return intCtntLen, nil
 }
 
+// makeRangesは各々の並行ダウンロード範囲を計算します。
+// 分割数と全体の長さを引数にとり、各範囲を表す文字列のスライスを返します。
 func makeRanges(num int, length int) []string {
 	var result []string
 	div := length / num
@@ -99,6 +105,7 @@ func makeRanges(num int, length int) []string {
 	return result
 }
 
+// createFileは指定されたURL名から、ダウンロードしたデータをファイルに保存します。
 func createFile(url string, content string) (err error) {
 	basename := filepath.Base(url)
 	f, err := os.Create(basename)
@@ -119,6 +126,7 @@ func createFile(url string, content string) (err error) {
 	return nil
 }
 
+// segmentedDownloadは指定されたURLからデータを分割ダウンロードします。
 func segmentedDownload(url string, divNum int) error {
 	contentLength, err := getContentLength(url)
 	if err != nil {
@@ -136,6 +144,7 @@ func segmentedDownload(url string, divNum int) error {
 	return nil
 }
 
+// batchDownloadは指定されたURLからデータを一括ダウンロードします。
 func batchDownload(url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -153,6 +162,8 @@ func batchDownload(url string) error {
 	return nil
 }
 
+// Doは指定されたURLからデータをダウンロードします。
+// バイト範囲リクエストが可能な場合は分割ダウンロードを行い、それ以外の場合は一括ダウンロードを行います。
 func Do(url string, divNum int) error {
 	byteFlag, err := hasAcceptRangesBytes(url)
 	if err != nil {
