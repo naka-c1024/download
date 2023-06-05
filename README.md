@@ -1,2 +1,3 @@
-# segmented_downloader
-高速な分割ダウンローダ
+# 分割ダウンローダ
+
+wgetより高速な分割ダウンローダ
