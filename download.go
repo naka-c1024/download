@@ -15,12 +15,12 @@ import (
 
 // downloadInGoroutineは指定されたURLからデータを並行処理でダウンロードします。
 // ダウンロードしたデータは最終的にまとめられ、文字列として返されます。
-func downloadInGoroutine(url string, arrRange []string, divNum int) (string, error) {
-	var splitData []string = make([]string, divNum)
+func downloadInGoroutine(url string, byteRanges []string) (string, error) {
+	var splitData []string = make([]string, len(byteRanges))
 	eg, ctx := errgroup.WithContext(context.Background())
-	for i, ctxRange := range arrRange {
+	for i, byteRange := range byteRanges {
 		i := i
-		ctxRange := ctxRange
+		byteRange := byteRange
 		eg.Go(func() error {
 			select {
 			case <-ctx.Done():
@@ -30,7 +30,7 @@ func downloadInGoroutine(url string, arrRange []string, divNum int) (string, err
 				if err != nil {
 					return err
 				}
-				req.Header.Set("Range", ctxRange)
+				req.Header.Set("Range", byteRange)
 				client := new(http.Client)
 				resp, err := client.Do(req)
 				if err != nil {
@@ -56,27 +56,28 @@ func downloadInGoroutine(url string, arrRange []string, divNum int) (string, err
 	return allData, nil
 }
 
-// hasAcceptRangesBytesは指定されたURLがバイト範囲リクエストを受け入れるかどうかを判定します。
-func hasAcceptRangesBytes(url string) (bool, error) {
-	res, err := http.Head(url)
-	if err != nil {
-		return false, err
+// canSegmentedDownloadは分割ダウンロードが可能かどうかを判定します。
+func canSegmentedDownload(resp *http.Response) bool {
+	// Accept-Rangesヘッダーが存在しない場合は一括ダウンロード
+	acceptRanges := resp.Header.Get("Accept-Ranges")
+	if acceptRanges == "" || acceptRanges != "bytes" {
+		return false
 	}
-	acceptRanges := res.Header.Get("Accept-Ranges")
-	if acceptRanges == "bytes" {
-		return true, nil
-	} else {
-		return false, nil
+	// Content-Lengthヘッダーが存在しない場合は一括ダウンロード
+	contentLength := resp.Header.Get("Content-Length")
+	if contentLength == "" {
+		return false
 	}
+	return true
 }
 
 // getContentLengthは指定されたURLのコンテンツの長さを取得します。
 func getContentLength(url string) (int, error) {
-	res, err := http.Head(url)
+	resp, err := http.Head(url)
 	if err != nil {
 		return 0, err
 	}
-	contentLength := res.Header.Get("Content-Length")
+	contentLength := resp.Header.Get("Content-Length") // canSegmentedDownloadでチェック済み
 	intCtntLen, err := strconv.Atoi(contentLength)
 	if err != nil {
 		return 0, err
@@ -132,8 +133,8 @@ func segmentedDownload(url string, divNum int) error {
 	if err != nil {
 		return err
 	}
-	arrRange := makeRanges(divNum, contentLength)
-	allData, err := downloadInGoroutine(url, arrRange, divNum)
+	byteRanges := makeRanges(divNum, contentLength)
+	allData, err := downloadInGoroutine(url, byteRanges)
 	if err != nil {
 		return err
 	}
@@ -165,11 +166,12 @@ func batchDownload(url string) error {
 // Doは指定されたURLからデータをダウンロードします。
 // バイト範囲リクエストが可能な場合は分割ダウンロードを行い、それ以外の場合は一括ダウンロードを行います。
 func Do(url string, divNum int) error {
-	byteFlag, err := hasAcceptRangesBytes(url)
+	resp, err := http.Head(url)
 	if err != nil {
 		return err
 	}
-	if byteFlag {
+	flag := canSegmentedDownload(resp)
+	if flag {
 		return segmentedDownload(url, divNum)
 	} else {
 		return batchDownload(url)
