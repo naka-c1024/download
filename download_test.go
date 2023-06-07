@@ -34,6 +34,15 @@ func Test_downloadInGoroutine(t *testing.T) {
 			want:    "This is a test responseThis is a test responseThis is a test response",
 			wantErr: nil,
 		},
+		{
+			name: "Test2: No byte range",
+			args: structArgs{
+				url:        server.URL,
+				byteRanges: []string{},
+			},
+			want:    "",
+			wantErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
