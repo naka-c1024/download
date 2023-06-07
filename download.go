@@ -18,6 +18,13 @@ import (
 func downloadInGoroutine(url string, byteRanges []string) (string, error) {
 	var splitData []string = make([]string, len(byteRanges))
 	eg, ctx := errgroup.WithContext(context.Background())
+	client := new(http.Client) // 先にクライアントを作成しておきfor文でgoroutine毎にTCPコネクションを再利用して効率を上げる
+	// ↓テストでgoroutineのリークが発生しないようにする場合、ただし効率は下がる
+	// client := &http.Client{
+	// 	Transport: &http.Transport{
+	// 		DisableKeepAlives: true, // HTTPコネクションを再利用しない
+	// 	},
+	// }
 	for i, byteRange := range byteRanges {
 		i := i
 		byteRange := byteRange
@@ -31,7 +38,6 @@ func downloadInGoroutine(url string, byteRanges []string) (string, error) {
 					return err
 				}
 				req.Header.Set("Range", byteRange)
-				client := new(http.Client)
 				resp, err := client.Do(req)
 				if err != nil {
 					return err
