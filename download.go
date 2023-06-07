@@ -16,9 +16,9 @@ import (
 // downloadInGoroutineは指定されたURLからデータを並行処理でダウンロードします。
 // ダウンロードしたデータは最終的にまとめられ、文字列として返されます。
 func downloadInGoroutine(url string, byteRanges []string) (string, error) {
-	var splitData []string = make([]string, len(byteRanges))
+	var segmentedData []string = make([]string, len(byteRanges))
 	eg, ctx := errgroup.WithContext(context.Background())
-	client := new(http.Client) // 先にクライアントを作成しておきfor文でgoroutine毎にTCPコネクションを再利用して効率を上げる
+	client := new(http.Client) // 先にクライアントを作成しておきfor文でgoroutine毎にコネクションを再利用して効率を上げる
 	// ↓テストでgoroutineのリークが発生しないようにする場合、ただし効率は下がる
 	// client := &http.Client{
 	// 	Transport: &http.Transport{
@@ -43,11 +43,11 @@ func downloadInGoroutine(url string, byteRanges []string) (string, error) {
 					return err
 				}
 				defer resp.Body.Close()
-				byteArray, err := io.ReadAll(resp.Body)
+				byteData, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return err
 				}
-				splitData[i] = fmt.Sprint(string(byteArray))
+				segmentedData[i] = fmt.Sprint(string(byteData))
 				return nil
 			}
 		})
@@ -56,7 +56,7 @@ func downloadInGoroutine(url string, byteRanges []string) (string, error) {
 		return "", err
 	}
 	var allData string
-	for _, v := range splitData {
+	for _, v := range segmentedData {
 		allData += v
 	}
 	return allData, nil
@@ -78,11 +78,7 @@ func canSegmentedDownload(resp *http.Response) bool {
 }
 
 // getContentLengthは指定されたURLのコンテンツの長さを取得します。
-func getContentLength(url string) (int, error) {
-	resp, err := http.Head(url)
-	if err != nil {
-		return 0, err
-	}
+func getContentLength(resp *http.Response) (int, error) {
 	contentLength := resp.Header.Get("Content-Length") // canSegmentedDownloadでチェック済み
 	intCtntLen, err := strconv.Atoi(contentLength)
 	if err != nil {
@@ -134,8 +130,8 @@ func createFile(url string, content string) (err error) {
 }
 
 // segmentedDownloadは指定されたURLからデータを分割ダウンロードします。
-func segmentedDownload(url string, divNum int) error {
-	contentLength, err := getContentLength(url)
+func segmentedDownload(resp *http.Response, url string, divNum int) error {
+	contentLength, err := getContentLength(resp)
 	if err != nil {
 		return err
 	}
@@ -158,11 +154,11 @@ func batchDownload(url string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	byteArray, err := ioutil.ReadAll(resp.Body)
+	byteData, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	err = createFile(url, string(byteArray))
+	err = createFile(url, string(byteData))
 	if err != nil {
 		return err
 	}
@@ -178,7 +174,7 @@ func Do(url string, divNum int) error {
 	}
 	flag := canSegmentedDownload(resp)
 	if flag {
-		return segmentedDownload(url, divNum)
+		return segmentedDownload(resp, url, divNum)
 	} else {
 		return batchDownload(url)
 	}
